@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인증</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans KR', 'Segoe UI', sans-serif;
+      background: #0e0f17;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #13141f;
+      border: 1px solid #1e1f2e;
+      border-radius: 20px;
+      padding: 48px 40px 44px;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    }
+
+    .server-icon {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin: 0 auto 28px;
+      display: block;
+      border: 3px solid #2a2b3d;
+    }
+
+    .server-icon-placeholder {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7b5cfa, #a78bfa);
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 28px;
+      letter-spacing: 1px;
+    }
+
+    .server-name {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #f0f0f5;
+      line-height: 1.4;
+      margin-bottom: 10px;
+      word-break: keep-all;
+    }
+
+    .provider {
+      font-size: 0.85rem;
+      color: #5c5f7a;
+      margin-bottom: 36px;
+    }
+
+    .provider span {
+      color: #7b7e9e;
+      font-weight: 600;
+    }
+
+    .verify-btn {
+      width: 100%;
+      padding: 15px 24px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .18s, transform .12s;
+      letter-spacing: .3px;
+    }
+
+    .verify-btn:hover:not(:disabled) {
+      background: #6457f5;
+      transform: translateY(-1px);
+    }
+
+    .verify-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .verify-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .verify-btn.done {
+      background: #1e1f2e;
+      color: #7b7e9e;
+    }
+
+    .verify-btn.error {
+      background: #7a1f1f;
+    }
+
+    /* 로딩 스피너 */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="iconWrap"></div>
+    <div class="server-name" id="serverName">불러오는 중...</div>
+    <div class="provider">서비스 제공자: <span>VaultCord.</span></div>
+    <button class="verify-btn" id="verifyBtn" onclick="doVerify()" disabled>
+      인증하기
+    </button>
+  </div>
+
+  <script>
+    // ── 설정 ────────────────────────────────────────────────────
+    // Cloudflare Worker URL로 교체하세요
+    const WORKER_URL = 'https://discord-verify.아이디.workers.dev';
+    // ────────────────────────────────────────────────────────────
+
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const btn = document.getElementById('verifyBtn');
+    const nameEl = document.getElementById('serverName');
+    const iconWrap = document.getElementById('iconWrap');
+
+    // 페이지 로드 시 토큰으로 서버 정보 가져오기
+    async function loadServerInfo() {
+      if (!token) {
+        nameEl.textContent = '잘못된 링크입니다.';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${WORKER_URL}/info?token=${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          nameEl.textContent = '만료되었거나 유효하지 않은 링크입니다.';
+          return;
+        }
+        const data = await res.json();
+
+        nameEl.textContent = data.serverName || '서버 인증';
+
+        if (data.serverIcon) {
+          const img = document.createElement('img');
+          img.className = 'server-icon';
+          img.src = data.serverIcon;
+          img.alt = '서버 아이콘';
+          img.onerror = () => showPlaceholder(data.serverName);
+          iconWrap.appendChild(img);
+        } else {
+          showPlaceholder(data.serverName);
+        }
+
+        btn.disabled = false;
+      } catch {
+        nameEl.textContent = '서버 정보를 불러올 수 없습니다.';
+      }
+    }
+
+    function showPlaceholder(name) {
+      const initials = (name || 'VC').slice(0, 2).toUpperCase();
+      const div = document.createElement('div');
+      div.className = 'server-icon-placeholder';
+      div.textContent = initials;
+      iconWrap.appendChild(div);
+    }
+
+    async function doVerify() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>인증 중...';
+
+      try {
+        const res = await fetch(`${WORKER_URL}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+          btn.textContent = 'Verify complete, close this site.';
+          btn.classList.add('done');
+        } else {
+          btn.textContent = data.error || '인증 실패 — 다시 시도해주세요';
+          btn.classList.add('error');
+          btn.disabled = false;
+        }
+      } catch {
+        btn.textContent = '오류 발생 — 다시 시도해주세요';
+        btn.classList.add('error');
+        btn.disabled = false;
+      }
+    }
+
+    loadServerInfo();
+  </script>
+</body>
+</html>
